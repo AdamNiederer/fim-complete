@@ -9,12 +9,12 @@
   "Face used for completion overlay text."
   :group 'fim-complete)
 
-(defcustom fim-complete-model "qwen2.5-coder:7b-base-q8_0"
+(defcustom fim-complete-model "qwen2.5-coder:32b-base-iq3_M"
   "Model to use for completion."
   :type 'string
   :group 'fim-complete)
 
-(defcustom fim-complete-weak-model "qwen2.5-coder:3b-base-q8_0"
+(defcustom fim-complete-weak-model "qwen2.5-coder:7b-base-q8_0"
   "Model to use for completion."
   :type 'string
   :group 'fim-complete)
