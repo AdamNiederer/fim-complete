@@ -56,6 +56,9 @@
 (defvar-local fim-complete--post-command-timer nil
   "Timer to run `fim-complete' after idle time.")
 
+(defvar-local fim-complete--completion nil
+  "The current completion suggested by `fim-complete'.")
+
 (defvar-local fim-complete--fetching nil
   "Whether fim-complete is currently fetching data")
 
@@ -159,25 +162,32 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
      (lambda (status)
        (with-current-buffer buffer
          (setq fim-complete--fetching nil))
-       (let ((http-buf (current-buffer)))
-         (unwind-protect
-             (if-let ((success (null (plist-get status :error))))
-                 (progn
-                   (goto-char url-http-end-of-headers)
-                   (condition-case nil
-                       (let* ((json (json-parse-buffer :object-type 'plist))
-                              (resp (plist-get json :response))
-                              (prompt-eval-count (plist-get json :prompt_eval_count))
-                              (eval-count (plist-get json :eval_count)))
-                         (when (> (+ prompt-eval-count eval-count) fim-complete-num-ctx)
-                           (warn "Token count (%s) exceeded num_ctx (%s)"
-                                 (+ prompt-eval-count eval-count)
-                                 fim-complete--num-ctx))
-                         (funcall callback resp))
-                     (error (funcall callback ""))))
-               (message "FIM Complete request failed"))
-           (when (buffer-live-p http-buf)
-             (kill-buffer http-buf))))))))
+       (when-let* ((http-buf (current-buffer))
+                   (success (null (plist-get status :error))))
+         (goto-char url-http-end-of-headers)
+         (let* ((json (json-parse-buffer :object-type 'plist))
+                (resp (plist-get json :response))
+                (prompt-eval-count (plist-get json :prompt_eval_count))
+                (eval-count (plist-get json :eval_count)))
+           (when (> (+ prompt-eval-count eval-count) fim-complete-num-ctx)
+             (warn "Token count (%s) exceeded num_ctx (%s)"
+                   (+ prompt-eval-count eval-count)
+                   fim-complete--num-ctx))
+           (with-current-buffer buffer
+             (funcall callback resp)))
+         (when (buffer-live-p http-buf)
+           (kill-buffer http-buf)))))))
+
+(defun fim-complete--make-completion-overlay (str)
+  "Put an overlay with contents of STR at cursor in the current buffer."
+  (let* ((ol-end (if (or (eolp) (string-match-p "\\n$" str)) (point) (1+ (point))))
+         (ol-disp (if (or (eolp) (string-match-p "\\n$" str)) 'after-string 'display))
+         (ol-str (buffer-substring (point) ol-end)))
+    (setq fim-complete--overlay (make-overlay (point) ol-end))
+    (put-text-property 0 1 'cursor t str)
+    (put-text-property 0 (length str) 'face 'fim-complete-overlay-face str)
+    (overlay-put fim-complete--overlay ol-disp (concat str ol-str))
+    (overlay-put fim-complete--overlay 'fim-complete t)))
 
 ;;;###autoload
 (defun fim-complete (model)
@@ -197,21 +207,19 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
        (t
         ;; No root: use only current buffer
         (setq prompt (fim-complete--format-buffer nil))))
-      (when fim-complete--overlay (delete-overlay fim-complete--overlay))
-      (setq fim-complete--overlay (make-overlay (point) (point) nil nil nil))
-      (overlay-put fim-complete--overlay 'fim-complete t)
+      (when fim-complete--overlay
+        (delete-overlay fim-complete--overlay))
+      (setq-local fim-complete--point (point))
       (fim-complete--request
        prompt model
        (lambda (resp)
          (when (and (stringp resp) (> (length resp) 0)
                     (not (string-match-p "\\`[[:space:]\n]*\\'" resp))
-                    ;; fim-complete--overlay might be removed by the time we get the response
-                    fim-complete--overlay)
-           (put-text-property 0 1 'cursor t resp)
-           (put-text-property 0 (length resp) 'face 'fim-complete-overlay-face resp)
-           (overlay-put fim-complete--overlay 'after-string resp)))))))
+                    (equal (point) fim-complete--point))
+           (setq fim-complete--completion resp)
+           (fim-complete--make-completion-overlay resp)))))))
 
-(defvar fim-complete-minor-mode-map
+(defvar fim-complete-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c RET") 'fim-complete-insert)
     (define-key map (kbd "C-c TAB") 'fim-complete)
@@ -222,8 +230,8 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
 (defun fim-complete-insert ()
   "Insert current completion."
   (interactive)
-  (when (and fim-complete--overlay (overlay-get fim-complete--overlay 'after-string))
-    (insert (overlay-get fim-complete--overlay 'after-string))
+  (when (and fim-complete--overlay)
+    (insert fim-complete--completion)
     (fim-complete-reset-overlay)))
 
 (defun fim-complete-reject ()
@@ -252,26 +260,27 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
            fim-complete-idle-delay
            nil
            (lambda ()
-             (when (and (fim-complete-minor-mode-p) (not (minibufferp)))
+             (when (and (fim-complete-mode-p) (not (minibufferp)))
                (fim-complete fim-complete-weak-model)))))))
 
 (defun fim-complete-reset-overlay ()
   "Clear FIM overlay."
   (when fim-complete--overlay
     (delete-overlay fim-complete--overlay)
-    (setq fim-complete--overlay nil)))
+    (setq fim-complete--overlay nil)
+    (setq fim-complete--completion nil)))
 
 ;;;###autoload
-(defun fim-complete-minor-mode-p ()
-  "Return non-nil if `fim-complete-minor-mode' is enabled in current buffer."
-  fim-complete-minor-mode)
+(defun fim-complete-mode-p ()
+  "Return non-nil if `fim-complete-mode' is enabled in current buffer."
+  fim-complete-mode)
 
 ;;;###autoload
-(define-minor-mode fim-complete-minor-mode
+(define-minor-mode fim-complete-mode
   "Toggle FIM Complete mode."
   :lighter " FIM"
   :global nil
-  (if fim-complete-minor-mode
+  (if fim-complete-mode
       (progn
         (add-hook 'post-command-hook 'fim-complete--post-command nil t)
         (add-hook 'kill-buffer-hook
