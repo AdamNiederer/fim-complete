@@ -80,10 +80,11 @@ With prefix arg, query user for file path."
          (root (vc-git-root (file-name-directory file))))
     (when root
       (puthash root
-               (thread-last (gethash root fim-complete--context-files '())
-                            (cons file)
-                            (seq-uniq)
-                            (seq-take fim-complete--context-files-count))
+               (seq-take
+                (thread-last (gethash root fim-complete--context-files '())
+                             (cons file)
+                             (seq-uniq))
+                fim-complete--context-files-count)
                fim-complete--context-files))))
 
 ;;;###autoload
