@@ -29,6 +29,16 @@
   :type 'number
   :group 'fim-complete)
 
+(defcustom fim-complete-num-ctx 8192
+  "Size of the context window in tokens"
+  :type 'number
+  :group 'fim-complete)
+
+(defcustom fim-complete-num-predict 128
+  "Maximum number of tokens to predict for a completion"
+  :type 'number
+  :group 'fim-complete)
+
 (defvar fim-complete--context-files (make-hash-table :test 'equal)
   "Hashtable of project directories to list of files.")
 
@@ -128,12 +138,11 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
          (json-encode
           `(("model" . ,model)
             ("stream" . :json-false)
-            ("options" . (("num_predict" . 128)))
+            ("options" . (("num_predict" . ,fim-complete-num-predict) ("num_ctx" . ,fim-complete-num-ctx)))
             ("prompt" . ,prompt))))
         (url-show-status nil)
         (buffer (current-buffer)))
     (setq fim-complete--fetching t)
-    (message "%s" prompt)
     (url-retrieve
      fim-complete-url
      (lambda (status)
@@ -179,9 +188,9 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
          (when (and (stringp resp) (> (length resp) 0)
                     (not (string-match-p "\\`[[:space:]\n]*\\'" resp))
                     ;; fim-complete--overlay might be removed by the time we get the response
-                    (overlay-buffer fim-complete--overlay))
+                    fim-complete--overlay)
            (put-text-property 0 1 'cursor t resp)
-           (put-text-property 0 (length resp) 'face 'shadow resp)
+           (put-text-property 0 (length resp) 'face 'fim-complete-overlay-face resp)
            (overlay-put fim-complete--overlay 'after-string resp)))))))
 
 (defvar fim-complete-minor-mode-map
