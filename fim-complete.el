@@ -2,6 +2,7 @@
 
 (require 'json)
 (require 'vc-git)
+(require 'url)
 
 (defgroup fim-complete nil
   "Customizations for FIM completion."
