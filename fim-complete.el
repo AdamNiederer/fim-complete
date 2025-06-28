@@ -39,6 +39,11 @@
   :type 'number
   :group 'fim-complete)
 
+(defcustom fim-complete--context-files-count 5
+  "The maximum number of files placed in the repomap."
+  :type 'number
+  :group 'fim-complete)
+
 (defvar fim-complete--context-files (make-hash-table :test 'equal)
   "Hashtable of project directories to list of files.")
 
@@ -69,7 +74,10 @@ With prefix arg, query user for file path."
          (root (vc-git-root (file-name-directory file))))
     (when root
       (puthash root
-               (seq-uniq (cons file (gethash root fim-complete--context-files '())))
+               (thread-last (gethash root fim-complete--context-files '())
+                            (cons file)
+                            (seq-uniq)
+                            (seq-take fim-complete--context-files-count))
                fim-complete--context-files))))
 
 ;;;###autoload
@@ -202,7 +210,8 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
 
 (defvar fim-complete-minor-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c TAB") 'fim-complete-insert-or-complete)
+    (define-key map (kbd "C-c RET") 'fim-complete-insert)
+    (define-key map (kbd "C-c TAB") 'fim-complete)
     (define-key map (kbd "C-c DEL") 'fim-complete-reject)
     map)
   "Keymap for FIM complete minor mode.")
