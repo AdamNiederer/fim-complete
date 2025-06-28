@@ -154,7 +154,14 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
                  (progn
                    (goto-char url-http-end-of-headers)
                    (condition-case nil
-                       (let ((resp (plist-get (json-parse-buffer :object-type 'plist) :response)))
+                       (let* ((json (json-parse-buffer :object-type 'plist))
+                              (resp (plist-get json :response))
+                              (prompt-eval-count (plist-get json :prompt_eval_count))
+                              (eval-count (plist-get json :eval_count)))
+                         (when (> (+ prompt-eval-count eval-count) fim-complete-num-ctx)
+                           (warn "Token count (%s) exceeded num_ctx (%s)"
+                                 (+ prompt-eval-count eval-count)
+                                 fim-complete--num-ctx))
                          (funcall callback resp))
                      (error (funcall callback ""))))
                (message "FIM Complete request failed"))
