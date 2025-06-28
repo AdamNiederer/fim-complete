@@ -1,5 +1,8 @@
 ;;; fim-complete.el --- Fill-in-the-Middle completion using Ollama  -*- lexical-binding: t; -*-
 
+(require 'json)
+(require 'vc-git)
+
 (defgroup fim-complete nil
   "Customizations for FIM completion."
   :group 'completion)
