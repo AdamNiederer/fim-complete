@@ -116,7 +116,7 @@ With prefix arg, query user for file path."
       (let ((files (gethash root fim-complete--context-files)))
         (if (not files)
             (message "No files in repomap for project" root)
-          (message "%s" root
+          (message "Files for %s:\n%s" root
                    (mapconcat 'identity files "\n")))))))
 
 (defun fim-complete--format-repomap (root)
@@ -131,9 +131,9 @@ With prefix arg, query user for file path."
                 (with-temp-buffer
                   (insert-file-contents file)
                   (buffer-string))))
-      files "\n"))))
+      (remove (buffer-file-name) files) "\n"))))
 
-(defun fim-complete--format-buffer (&optional with-context)
+(defun fim-complete--format-buffer (&optional root)
   "Format current buffer for FIM completion.
 If WITH-CONTEXT is non-nil, include the file separator and filename."
   (let* ((buffer-file (buffer-file-name))
@@ -142,9 +142,9 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
          (formatted (concat fim-complete--fim-prefix before-point
                             fim-complete--fim-suffix after-point
                             fim-complete--fim-middle)))
-    (if with-context
+    (if root
         (concat fim-complete--file-sep
-                (file-name-nondirectory buffer-file) "\n"
+                (file-relative-name (file-name-nondirectory buffer-file) root) "\n"
                 formatted)
       formatted)))
 
@@ -222,10 +222,10 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
         (unless (member buffer-file (gethash root fim-complete--context-files))
           (fim-complete-add-file buffer-file))
         (setq prompt (concat (fim-complete--format-repomap root)
-                             (fim-complete--format-buffer t))))
+                             (fim-complete--format-buffer root))))
        (t
         ;; No root: use only current buffer
-        (setq prompt (fim-complete--format-buffer nil))))
+        (setq prompt (fim-complete--format-buffer))))
       (when fim-complete--overlay
         (delete-overlay fim-complete--overlay))
       (setq-local fim-complete--point (point))
