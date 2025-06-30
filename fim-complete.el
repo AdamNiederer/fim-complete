@@ -154,11 +154,13 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
         (url-request-extra-headers
          '(("Content-Type" . "application/json")))
         (url-request-data
-         (json-encode
-          `(("model" . ,model)
-            ("stream" . :json-false)
-            ("options" . (("num_predict" . ,fim-complete-num-predict) ("num_ctx" . ,fim-complete-num-ctx)))
-            ("prompt" . ,prompt))))
+         (encode-coding-string
+          (json-encode
+           `(("model" . ,model)
+             ("stream" . :json-false)
+             ("options" . (("num_predict" . ,fim-complete-num-predict) ("num_ctx" . ,fim-complete-num-ctx)))
+             ("prompt" . ,prompt)))
+          'utf-8))
         (url-show-status nil)
         (buffer (current-buffer)))
     (setq fim-complete--fetching t)
