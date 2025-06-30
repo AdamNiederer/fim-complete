@@ -1,4 +1,4 @@
-;;; fim-complete.el --- Fill-in-the-Middle completion using Ollama  -*- lexical-binding: t; -*-
+;;; fim-complete.el --- Fill-in-the-Middle completion using Ollama  -*- lexical-binding: t -*-
 
 (require 'json)
 (require 'vc-git)
@@ -62,6 +62,9 @@
 
 (defvar-local fim-complete--fetching nil
   "Whether fim-complete is currently fetching data")
+
+(defvar-local fim-complete--lighter " FIM"
+  "Token count of the most recent completion")
 
 (defconst fim-complete--file-sep "<|file_sep|>"
   "Separator for files in context.")
@@ -176,7 +179,11 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
                    (+ prompt-eval-count eval-count)
                    fim-complete--num-ctx))
            (with-current-buffer buffer
-             (funcall callback resp)))
+             (funcall callback resp)
+             (setq fim-complete--lighter (format " FIM[%s/%s]"
+                                                 (fim-complete--shorten-number prompt-eval-count)
+                                                 (fim-complete--shorten-number fim-complete-num-ctx)))
+             (force-mode-line-update)))
          (when (buffer-live-p http-buf)
            (kill-buffer http-buf)))))))
 
@@ -190,6 +197,14 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
     (put-text-property 0 (length str) 'face 'fim-complete-overlay-face str)
     (overlay-put fim-complete--overlay ol-disp (concat str ol-str))
     (overlay-put fim-complete--overlay 'fim-complete t)))
+
+(defun fim-complete--shorten-number (num)
+  "Replace a number with a letter suffix."
+  (cond
+   ((= num 0) "0")
+   ((< num 1024) (format "%d" num))
+   ((< num (* 1024 1024)) (format "%dk" (/ num 1024)))
+   (t (format "%dm" (/ num (* 1024 1024))))))
 
 ;;;###autoload
 (defun fim-complete (model)
@@ -280,8 +295,8 @@ If WITH-CONTEXT is non-nil, include the file separator and filename."
 ;;;###autoload
 (define-minor-mode fim-complete-mode
   "Toggle FIM Complete mode."
-  :lighter " FIM"
   :global nil
+  :lighter fim-complete--lighter
   (if fim-complete-mode
       (progn
         (add-hook 'post-command-hook 'fim-complete--post-command nil t)
